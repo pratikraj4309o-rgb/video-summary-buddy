@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Loader2, Play, History, Sparkles } from "lucide-react";
+import { Loader2, Play, History, Sparkles, Share2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -19,6 +19,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentSummary, setCurrentSummary] = useState<Summary | null>(null);
   const [history, setHistory] = useState<Summary[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     loadHistory();
@@ -75,6 +76,19 @@ const Index = () => {
   const handleHistoryClick = (summary: Summary) => {
     setCurrentSummary(summary);
     setVideoUrl(summary.video_url);
+  };
+
+  const handleShare = async (id: string) => {
+    const shareUrl = `${window.location.origin}/share/${id}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedId(id);
+      toast.success("Share link copied to clipboard!");
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      toast.error("Failed to copy link. Please try again.");
+    }
   };
 
   return (
@@ -142,18 +156,32 @@ const Index = () => {
         {/* Summary Display */}
         {currentSummary && (
           <Card className="p-8 mb-8 shadow-lg animate-fade-in border-l-4 border-l-primary">
-            <div className="mb-4">
-              <h2 className="text-2xl font-bold text-primary mb-2">
-                {currentSummary.video_title || "Video Summary"}
-              </h2>
-              <a
-                href={currentSummary.video_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <h2 className="text-2xl font-bold text-primary mb-2">
+                  {currentSummary.video_title || "Video Summary"}
+                </h2>
+                <a
+                  href={currentSummary.video_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {currentSummary.video_url}
+                </a>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleShare(currentSummary.id)}
               >
-                {currentSummary.video_url}
-              </a>
+                {copiedId === currentSummary.id ? (
+                  <Check className="h-4 w-4 mr-2" />
+                ) : (
+                  <Share2 className="h-4 w-4 mr-2" />
+                )}
+                {copiedId === currentSummary.id ? 'Copied!' : 'Share'}
+              </Button>
             </div>
             <div className="prose prose-sm max-w-none">
               <div className="whitespace-pre-wrap text-foreground leading-relaxed">
@@ -179,19 +207,46 @@ const Index = () => {
               {history.map((summary, index) => (
                 <Card
                   key={summary.id}
-                  className="p-6 cursor-pointer hover:shadow-lg hover:border-primary/40 transition-all"
-                  onClick={() => handleHistoryClick(summary)}
+                  className="p-6 hover:shadow-lg hover:border-primary/40 transition-all"
                   style={{ animationDelay: `${0.3 + index * 0.1}s` }}
                 >
-                  <h3 className="font-semibold text-sm mb-2 line-clamp-2 text-foreground">
-                    {summary.video_title || "Untitled Video"}
-                  </h3>
-                  <p className="text-xs text-muted-foreground line-clamp-3 mb-3">
-                    {summary.summary}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(summary.created_at).toLocaleDateString()}
-                  </p>
+                  <div
+                    className="cursor-pointer"
+                    onClick={() => handleHistoryClick(summary)}
+                  >
+                    <h3 className="font-semibold text-sm mb-2 line-clamp-2 text-foreground">
+                      {summary.video_title || "Untitled Video"}
+                    </h3>
+                    <p className="text-xs text-muted-foreground line-clamp-3 mb-3">
+                      {summary.summary}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(summary.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShare(summary.id);
+                      }}
+                      className="w-full"
+                    >
+                      {copiedId === summary.id ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="h-4 w-4 mr-2" />
+                          Share
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </Card>
               ))}
             </div>
