@@ -35,24 +35,36 @@ serve(async (req) => {
 
     console.log('Extracted video ID:', videoId);
 
-    // Fetch transcript using YouTube Transcript API
+    // Fetch transcript if available
     const transcript = await fetchTranscript(videoId);
-    if (!transcript) {
-      return new Response(
-        JSON.stringify({ error: 'Could not fetch transcript. Video may not have captions available.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
-    console.log('Transcript fetched, length:', transcript.length);
-
-    // Get video title
+    // Get video title (works even if transcript is missing)
     const videoTitle = await fetchVideoTitle(videoId);
     console.log('Video title:', videoTitle);
 
-    // Summarize using DeepSeek API
-    const summary = await summarizeWithDeepSeek(transcript, videoTitle);
-    console.log('Summary generated, length:', summary.length);
+    let summary: string;
+
+    if (!transcript) {
+      console.log('No transcript available, using fallback instructions for DeepSeek');
+      const fallbackTranscript = `TRANSCRIPT NOT AVAILABLE.
+
+The captions for this YouTube video could not be fetched. You do NOT know the exact content of the video.
+
+Based ONLY on the title and URL, do the following:
+1. Clearly tell the user that the transcript is not available.
+2. Explain what this likely means (no subtitles or restricted video).
+3. If the title suggests a topic, give a very high-level, generic description of what such a video might cover.
+4. Warn the user that this is just a guess.
+
+Video URL: ${videoUrl}`;
+      summary = await summarizeWithDeepSeek(fallbackTranscript, videoTitle);
+    } else {
+      console.log('Transcript fetched, length:', transcript.length);
+
+      // Summarize using DeepSeek API
+      summary = await summarizeWithDeepSeek(transcript, videoTitle);
+      console.log('Summary generated, length:', summary.length);
+    }
 
     // Save to database
     const supabase = createClient(
