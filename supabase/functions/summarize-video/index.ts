@@ -57,12 +57,12 @@ Based ONLY on the title and URL, do the following:
 4. Warn the user that this is just a guess.
 
 Video URL: ${videoUrl}`;
-      summary = await summarizeWithDeepSeek(fallbackTranscript, videoTitle);
+      summary = await summarizeWithAI(fallbackTranscript, videoTitle);
     } else {
       console.log('Transcript fetched, length:', transcript.length);
 
       // Summarize using DeepSeek API
-      summary = await summarizeWithDeepSeek(transcript, videoTitle);
+      summary = await summarizeWithAI(transcript, videoTitle);
       console.log('Summary generated, length:', summary.length);
     }
 
@@ -218,21 +218,21 @@ async function fetchVideoTitle(videoId: string): Promise<string> {
   return 'Unknown Video';
 }
 
-async function summarizeWithDeepSeek(transcript: string, title: string): Promise<string> {
-  const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
+async function summarizeWithAI(transcript: string, title: string): Promise<string> {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
   
-  if (!deepseekApiKey) {
-    throw new Error('DEEPSEEK_API_KEY not configured');
+  if (!LOVABLE_API_KEY) {
+    throw new Error('LOVABLE_API_KEY not configured');
   }
 
-  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${deepseekApiKey}`,
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: 'google/gemini-2.5-flash',
       messages: [
         {
           role: 'system',
@@ -262,8 +262,8 @@ Keep the summary clear and well-organized.`
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('DeepSeek API error:', response.status, errorText);
-    throw new Error(`DeepSeek API error: ${response.status}`);
+    console.error('AI Gateway error:', response.status, errorText);
+    throw new Error(`AI Gateway error: ${response.status}`);
   }
 
   const data = await response.json();
