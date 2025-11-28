@@ -112,27 +112,75 @@ function extractVideoId(url: string): string | null {
 
 async function fetchTranscript(videoId: string): Promise<string | null> {
   try {
-    // Use a public API to fetch YouTube transcripts
-    const response = await fetch(
-      `https://youtube-transcriptor.vercel.app/api/transcript?videoId=${videoId}`
-    );
+    // Fetch the YouTube video page to extract caption data
+    const pageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
     
-    if (!response.ok) {
-      console.error('Transcript API error:', response.status);
+    if (!pageResponse.ok) {
+      console.error('Failed to fetch YouTube page:', pageResponse.status);
       return null;
     }
     
-    const data = await response.json();
+    const pageHtml = await pageResponse.text();
     
-    if (!data || !data.transcript || data.transcript.length === 0) {
-      console.error('No transcript data available');
+    // Extract the player response JSON from the page
+    const playerResponseMatch = pageHtml.match(/"captions":(\{[^}]+captionTracks[^}]+\})/);
+    
+    if (!playerResponseMatch) {
+      console.error('No captions found in video page');
       return null;
     }
     
-    // Combine all transcript segments
-    const fullTranscript = data.transcript
-      .map((item: any) => item.text)
-      .join(' ');
+    // Parse the captions object
+    let captionsData;
+    try {
+      // Find the full captions object
+      const fullCaptionsMatch = pageHtml.match(/"captions":(\{"playerCaptionsTracklistRenderer":\{[^}]+?"captionTracks":\[[^\]]+\][^}]*\}\})/);
+      if (!fullCaptionsMatch) {
+        console.error('Could not parse captions structure');
+        return null;
+      }
+      
+      captionsData = JSON.parse(`{${fullCaptionsMatch[1]}}`);
+    } catch (e) {
+      console.error('Error parsing captions JSON:', e);
+      return null;
+    }
+    
+    const captionTracks = captionsData?.playerCaptionsTracklistRenderer?.captionTracks;
+    
+    if (!captionTracks || captionTracks.length === 0) {
+      console.error('No caption tracks available');
+      return null;
+    }
+    
+    // Get the first available caption track (usually English or auto-generated)
+    const captionUrl = captionTracks[0].baseUrl;
+    console.log('Fetching captions from:', captionUrl);
+    
+    // Fetch the actual transcript
+    const transcriptResponse = await fetch(captionUrl);
+    
+    if (!transcriptResponse.ok) {
+      console.error('Failed to fetch transcript:', transcriptResponse.status);
+      return null;
+    }
+    
+    const transcriptData = await transcriptResponse.json();
+    
+    // Extract text from the transcript events
+    if (!transcriptData.events || transcriptData.events.length === 0) {
+      console.error('No transcript events found');
+      return null;
+    }
+    
+    const fullTranscript = transcriptData.events
+      .filter((event: any) => event.segs) // Filter events with segments
+      .map((event: any) => 
+        event.segs.map((seg: any) => seg.utf8).join('')
+      )
+      .join(' ')
+      .replace(/\n/g, ' ')
+      .trim();
     
     return fullTranscript;
   } catch (error) {
